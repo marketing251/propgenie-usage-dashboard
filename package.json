@@ -1,0 +1,16 @@
+{
+  "name": "propgenie-usage-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PropGenie customer API cost & usage dashboard",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node scripts/seed.js",
+    "reset": "node scripts/seed.js --empty"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

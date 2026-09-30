@@ -1,0 +1,5 @@
+node_modules/
+.vercel/
+.env*
+data/*.db-wal
+data/*.db-shm

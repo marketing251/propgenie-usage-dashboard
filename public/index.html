@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PropGenie Usage</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%233b82f6'/></svg>" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="#/"><span class="brand-mark"></span>PropGenie Usage</a>
+    <div class="nav-label">Dashboard</div>
+    <a class="nav-item" data-nav="overview" href="#/"><span class="ico">📊</span>Overview</a>
+    <a class="nav-item" data-nav="clients" href="#/clients"><span class="ico">👥</span>Clients</a>
+    <div class="nav-label">Reference</div>
+    <a class="nav-item" data-nav="pricing" href="#/pricing"><span class="ico">💲</span>Model Pricing</a>
+    <a class="nav-item" data-nav="ingest" href="#/ingest"><span class="ico">🔌</span>Ingest API</a>
+    <div class="sidebar-foot" id="data-status"></div>
+  </aside>
+  <button class="menu-btn" id="menu-btn" aria-label="Menu">☰</button>
+
+  <main class="main">
+    <header class="page-head">
+      <h1 id="page-title">Usage Overview</h1>
+      <div class="controls" id="controls">
+        <div class="seg" id="range-seg" role="group" aria-label="Date range">
+          <button data-range="7">7D</button>
+          <button data-range="30">30D</button>
+          <button data-range="90">90D</button>
+          <button data-range="mtd">MTD</button>
+          <button data-range="all">All</button>
+        </div>
+        <div class="dates">
+          <input type="date" id="from" aria-label="From date" />
+          <span>→</span>
+          <input type="date" id="to" aria-label="To date" />
+        </div>
+        <button class="btn" id="refresh">🔄 Refresh</button>
+      </div>
+    </header>
+    <div id="view"></div>
+  </main>
+
+  <div class="tooltip" id="tooltip" hidden></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
