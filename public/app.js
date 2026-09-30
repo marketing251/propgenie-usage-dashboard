@@ -121,9 +121,9 @@ function dailyChart(canvas, legendEl, daily, metric) {
           titleFont: { family: 'DM Sans', weight: '600' }, bodyFont: { family: 'Space Mono', size: 11.5 }, footerFont: { family: 'Space Mono', size: 11.5 },
           filter: (item) => item.raw > 0, itemSort: (a, b) => b.raw - a.raw,
           callbacks: {
-            title: (items) => fmtDate(items[0].label),
+            title: (items) => items.length ? fmtDate(items[0].label) : '',
             label: (item) => ` ${item.dataset.label}: ${fmt(item.raw)}`,
-            footer: (items) => `Total: ${fmt(items.reduce((s, i) => s + i.raw, 0))}`,
+            footer: (items) => items.length ? `Total: ${fmt(items.reduce((s, i) => s + i.raw, 0))}` : 'No usage',
           },
         },
       },
