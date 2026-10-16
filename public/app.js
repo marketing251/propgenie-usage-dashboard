@@ -436,7 +436,7 @@ function renderSettings() {
           ${m.live ? row('Last fetched', esc(ago(m.lastFetched))) : ''}
           ${m.live ? row('Refresh cadence', `Live, cached ${m.cacheMinutes} min`) : ''}
           ${m.live ? row('Customer names mapped', int(m.namesMapped)) : ''}
-          ${row('Cloudflare Access', m.accessProtected ? 'Enforced on every API request' : 'Not configured')}
+          ${row('Sign-in', m.protection === 'cloudflare' ? 'Cloudflare Access (verified on every API request)' : m.protection === 'vercel' ? 'Vercel Authentication (team members only)' : 'None')}
         </dl>
         ${m.live ? '<p class="muted small">Data is read live from the Wallet API and cached briefly. Use <b>Refresh</b> (top bar) to pull the latest immediately.</p>'
           : '<p class="muted small">Set <code>WALLET_API_TOKEN</code> (a Wallet service or admin token) in <code>.env.local</code> locally or in Vercel → Settings → Environment Variables, then redeploy. The dashboard only ever makes read (GET) requests.</p>'}
