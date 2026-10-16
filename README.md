@@ -1,30 +1,32 @@
 # PropGenie Usage Dashboard
 
-Tracks every PropAccount customer's PropGenie API usage: tokens and $ spend per model, per tool, per client.
+Every PropAccount customer's PropGenie usage: credits, USD spend, uses per service/tool, wallet balances, purchases and the full usage ledger — read live from the **FPFX Wallet API** (`walletapi.propaccount.com`).
 
 ```bash
-npm run seed    # demo data (24 clients, 120 days)
-npm start       # http://localhost:5890
-npm run reset   # wipe everything before going live
+npm start       # http://localhost:5890 (reads .env.local)
+npm run seed    # rebuild demo data (used when no Wallet token is set)
+npm run mock    # spec-shaped mock Wallet API on :5899 for offline testing
 ```
 
-Requires Node ≥ 22.5 (uses built-in `node:sqlite`, zero dependencies). Data lives in `data/usage.db`.
+Requires Node ≥ 22.5 (built-in `node:sqlite`, zero dependencies).
+
+## Data
+| Mode | When | Source |
+|---|---|---|
+| **Live** | `WALLET_API_TOKEN` set | Wallet API, GET requests only, cached `CACHE_MINUTES` (15) per instance; **Refresh** clears the cache |
+| **Demo** | no token | seeded `data/usage.db` |
+
+Wallet endpoints used: `/v1/Wallets`, `/v1/Tenants/{id}/consumption` (daily buckets, interval auto-detected), `/wallet`, `/balance`, `/ledger`, `/v1/Orders/{id}`, `/v1/Services`, `/v1/Config/settings` (WooCommerce secrets are dropped), `/v1/Config/token-rates`, `/v1/Products`.
+
+Known Wallet API gaps:
+- **No customer names** in any GET endpoint → map them with `TENANT_NAMES` (JSON `{ "uuid": "Name" }`) until `/v1/Wallets` returns `name`.
+- **No per-model LLM tokens** in the ledger (`llm`, `tokensIn`, `tokensOut` are accepted on consumption but never returned). The dashboard shows them automatically once the ledger includes those fields.
+- "Est. API cost" = customer spend × (1 − `markupPercent`).
 
 ## Screens
-- **Overview** (`#/`) — total spend, tokens, requests, active clients, credits billed, gross margin; a card per model with tokens + $; per-model token table; daily usage chart (spend / tokens / requests); top clients; spend by tool.
-- **Clients** (`#/clients/:id`) — searchable client list; per-client KPIs, spend by model, tool × model breakdown (click a row to filter), daily chart, and a filterable/sortable usage log with CSV export.
-- Date range (7D / 30D / 90D / MTD / All / custom) applies everywhere.
+- **Overview** — spend, credits, est. API cost, uses, active customers, wallet balances; usage per service; daily chart (spend / credits / uses); top customers.
+- **Clients** — searchable customer list; per-customer totals, wallet & auto-renewal, usage by service (click to filter), daily chart, credit purchases, paginated usage ledger with CSV export.
+- **Settings** — data source status, credit pricing & markup, LLM token rates, services, credit packages.
 
-## Sending usage from PropGenie
-`POST /api/usage` with header `x-ingest-key: $INGEST_KEY` (dev default `pg-usage-dev-key`). Body is one event or an array:
-
-```json
-{ "client_id": "cl_acme", "client_name": "Acme Funding", "plan": "Pro",
-  "tool": "Social Post Writer", "model": "genie-pro",
-  "input_tokens": 2140, "output_tokens": 612, "cached_tokens": 0, "images": 0,
-  "request_id": "req_8f2c1", "ts": "2026-09-30T14:02:11Z" }
-```
-
-`model` ∈ `genie-pro`, `genie-flash`, `genie-canvas`, `genie-vision`, `webbuilder`. Cost and credits are computed from `lib/pricing.js` (1 credit = $0.01, 5× markup, rounded up) unless `cost_usd` / `credits` are sent. `request_id` is deduplicated so retries are safe; unknown clients are created automatically.
-
-Env: `PORT` (5890), `INGEST_KEY`, `DB_PATH`.
+## Environment
+See `.env.example`. On Vercel, live data is refused until Cloudflare Access is configured (`CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`); every `/api` request then requires a valid Access JWT.
