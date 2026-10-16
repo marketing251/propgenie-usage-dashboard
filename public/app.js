@@ -17,8 +17,10 @@ function usd(v, full = false) {
   if (!full && a >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M';
   if (!full && a >= 1e4) return '$' + (v / 1e3).toFixed(1) + 'K';
   if (a >= 1 || a === 0) return (v < 0 ? '-$' : '$') + a.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return (v < 0 ? '-$' : '$') + a.toFixed(4).replace(/0{1,2}$/, '');
+  if (a >= 0.01) return (v < 0 ? '-$' : '$') + a.toFixed(4).replace(/0{1,2}$/, '');
+  return (v < 0 ? '-$' : '$') + Number(a.toPrecision(2)).toFixed(Math.min(10, 1 - Math.floor(Math.log10(a)))).replace(/0+$/, '');
 }
+const signed = (v, f) => (v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + f(Math.abs(v)));
 function compact(v) {
   if (v == null) return '—';
   const a = Math.abs(v);
@@ -186,7 +188,8 @@ const tiles = (list) => `<div class="grid tiles">${list.map((x) => `<div class="
 function usageTiles(t, p, extra = []) {
   const markup = state.meta.settings.markupPercent;
   return tiles([
-    { label: 'Customer Spend', value: usd(t.usd, t.usd < 1e5), cls: 'green', sub: delta(t.usd, p?.usd) || '<span class="sub">charged to wallets</span>' },
+    { label: 'Customer Spend', value: usd(t.usd, t.usd < 1e5), cls: 'green', sub: (delta(t.usd, p?.usd) || '<span class="sub">tool usage charged to wallets</span>')
+      + (t.otherDebits > 0.005 ? `<br><span class="sub">+ ${usd(t.otherDebits)} manual admin debits excluded</span>` : '') },
     { label: 'Credits Used', value: compact(t.credits), sub: delta(t.credits, p?.credits) || `<span class="sub">${int(t.credits)} credits</span>` },
     { label: state.meta.live ? 'Est. API Cost' : 'API Cost', value: usd(t.apiCost),
       sub: state.meta.live ? `<span class="sub">spend × (1 − ${markup ?? '?'}% markup)</span>` : delta(t.apiCost, p?.apiCost) },
@@ -214,10 +217,11 @@ function serviceCards(byService, total) {
   }).join('')}</div>`;
 }
 
+const canFilter = (clickable, r) => clickable && !(state.meta.live && r.service === 'Unattributed');
 function serviceTable(byService, t, clickable) {
   return `<div class="card table-wrap" style="padding:6px 6px 0"><table>
     <thead><tr><th>Service / tool</th><th class="num">Uses</th><th class="num">Credits</th><th class="num">Spend</th><th class="num">${state.meta.live ? 'Est. API cost' : 'API cost'}</th><th class="num">Share</th></tr></thead>
-    <tbody>${byService.map((r) => `<tr class="${clickable ? 'clickable' : ''} ${clickable && state.log?.service === r.service ? 'selected' : ''}" ${clickable ? `data-service="${esc(r.service)}"` : ''}>
+    <tbody>${byService.map((r) => `<tr class="${canFilter(clickable, r) ? 'clickable' : ''} ${clickable && state.log?.service === r.service ? 'selected' : ''}" ${canFilter(clickable, r) ? `data-service="${esc(r.service)}"` : ''}>
       <td>${svcTag(r.service)}</td><td class="num">${int(r.transactions)}</td><td class="num">${int(Math.abs(r.credits))}</td>
       <td class="num">${usd(Math.abs(r.usd), true)}</td><td class="num">${usd(r.apiCost == null ? null : Math.abs(r.apiCost), true)}</td>
       <td class="num">${t.usd ? pct(Math.abs(r.usd) / Math.abs(t.usd)) : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No usage in this range</td></tr>'}</tbody>
@@ -335,7 +339,7 @@ async function renderClients(id) {
     <section class="section" id="log">
       <div class="section-head"><h2>Usage log</h2><span class="hint" id="log-count"></span><span class="spacer"></span><button class="btn" id="export">⬇ Export CSV</button></div>
       <div class="filters">
-        <select class="input" id="service-filter"><option value="">All services</option>${services.map((s) => `<option>${esc(s)}</option>`).join('')}</select>
+        <select class="input" id="service-filter"><option value="">All services</option>${services.filter((x) => !(state.meta.live && x === 'Unattributed')).map((s) => `<option>${esc(s)}</option>`).join('')}</select>
         <button class="btn" id="clear-filters" hidden>Clear filter</button>
       </div>
       <div class="card table-wrap" style="padding:6px 6px 0"><table>
@@ -363,12 +367,13 @@ function logColumns(rows) {
   const has = (k) => rows.some((r) => r[k] != null);
   return [
     ['Time', (r) => `<td class="mono" style="font-size:12px">${fmtTs(r.ts)}</td>`],
-    ['Service', (r) => `<td>${svcTag(r.service)}</td>`],
+    ...(has('action') ? [['Type', (r) => `<td>${esc(r.action)}${r.actor ? ` <span class="muted" style="font-size:12px">· ${esc(r.actor)}</span>` : ''}</td>`]] : []),
+    ['Service', (r) => `<td>${r.service ? svcTag(r.service) : '<span class="muted">—</span>'}</td>`],
     ...(has('reason') ? [['Reason', (r) => `<td class="muted">${esc(r.reason || '')}</td>`]] : []),
     ...(has('model') ? [['Model', (r) => `<td>${esc(r.model || '—')}</td>`]] : []),
     ...(has('tokensIn') ? [['Input tokens', (r) => `<td class="num">${int(r.tokensIn)}</td>`, 1], ['Output tokens', (r) => `<td class="num">${int(r.tokensOut)}</td>`, 1]] : []),
-    ['Credits', (r) => `<td class="num">${int(r.credits == null ? null : Math.abs(r.credits))}</td>`, 1],
-    ['Spend', (r) => `<td class="num">${usd(r.usd == null ? null : Math.abs(r.usd))}</td>`, 1],
+    ['Credits', (r) => `<td class="num">${has('action') ? signed(r.credits, int) : int(r.credits)}</td>`, 1],
+    ['Amount', (r) => `<td class="num">${has('action') ? signed(r.usd, (v) => usd(v)) : usd(r.usd)}</td>`, 1],
     ...(has('apiCost') ? [['API cost', (r) => `<td class="num">${usd(r.apiCost)}</td>`, 1]] : []),
     ...(has('balanceUsd') ? [['Balance after', (r) => `<td class="num">${usd(r.balanceUsd)}</td>`, 1]] : []),
   ];
@@ -404,9 +409,9 @@ async function exportCsv(client) {
       rows.push(...d.rows);
       if (rows.length >= d.total || !d.rows.length) break;
     }
-    const head = ['timestamp_utc', 'customer_id', 'customer_name', 'service', 'reason', 'model', 'tokens_in', 'tokens_out', 'credits', 'spend_usd', 'balance_after_usd'];
+    const head = ['timestamp_utc', 'customer_id', 'customer_name', 'type', 'actor', 'service', 'reason', 'model', 'tokens_in', 'tokens_out', 'credits', 'spend_usd', 'balance_after_usd'];
     const cell = (v) => /[",\n]/.test(String(v ?? '')) ? `"${String(v).replace(/"/g, '""')}"` : (v ?? '');
-    const csv = [head.join(','), ...rows.map((r) => [r.ts, client.id, client.name, r.service, r.reason, r.model, r.tokensIn, r.tokensOut,
+    const csv = [head.join(','), ...rows.map((r) => [r.ts, client.id, client.name, r.action, r.actor, r.service, r.reason, r.model, r.tokensIn, r.tokensOut,
       r.credits, r.usd, r.balanceUsd].map(cell).join(','))].join('\n');
     const { from, to } = rangeDates();
     const a = Object.assign(document.createElement('a'), {
@@ -446,7 +451,7 @@ function renderSettings() {
           ${s.minHoldAmount != null ? row('Min hold', usd(s.minHoldAmount)) : ''}
           ${s.defaultAutoRenewalFrequencyDays != null ? row('Default renewal', `every ${int(s.defaultAutoRenewalFrequencyDays)} days`) : ''}
         </dl>
-        <p class="muted small">Est. API cost on the dashboard = customer spend × (1 − markup). Credit price is what customers pay per PropGenie credit.</p>
+        <p class="muted small">Credits are the Wallet's “tokens” (sold as packs like “1M Tokens”). Est. API cost = customer spend × (1 − markup). Credit price is what customers pay per credit.</p>
       </section>
     </div>
     <section class="section">
