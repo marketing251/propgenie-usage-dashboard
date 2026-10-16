@@ -1,6 +1,6 @@
 # PropGenie Usage Dashboard
 
-Every PropAccount customer's PropGenie usage: credits, USD spend, uses per service/tool, wallet balances, purchases and the full usage ledger — read live from the **FPFX Wallet API** (`wallet.fpfxtech.io`).
+Every PropAccount customer's PropGenie usage: credits, USD spend, uses per service/tool, wallet balances, purchases and the full usage ledger — read live from the **FPFX Wallet API** (`wallet.fpfxtech.io`). Customer names come from `tenantName` on `/v1/Wallets` and `/wallet` (`TENANT_NAMES` can override).
 
 ```bash
 npm start       # http://localhost:5890 (reads .env.local)
@@ -19,7 +19,6 @@ Requires Node ≥ 22.5 (built-in `node:sqlite`, zero dependencies).
 Wallet endpoints used: `/v1/Wallets`, `/v1/Tenants/{id}/consumption` (interval 0 = daily), `/wallet`, `/balance`, `/ledger`, `/v1/Orders/{id}`, `/v1/Services`, `/v1/Config/settings` (WooCommerce secrets are dropped), `/v1/Config/token-rates`, `/v1/Products`.
 
 Known Wallet API gaps:
-- **No customer names** in any GET endpoint → map them with `TENANT_NAMES` (JSON `{ "uuid": "Name" }`) until `/v1/Wallets` returns `name`.
 - **No per-model LLM tokens** in the ledger (`llm`, `tokensIn`, `tokensOut` are accepted on consumption but never returned). The dashboard shows them automatically once the ledger includes those fields.
 - "Est. API cost" = customer spend × (1 − `markupPercent`).
 - Spend counts tool usage (consumption reports). Manual admin debits appear in `/v1/Wallets` "spent" but not in consumption; the overview shows that gap separately.

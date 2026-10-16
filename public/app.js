@@ -435,7 +435,7 @@ function renderSettings() {
           ${m.live ? row('Endpoint', `<span class="mono">${esc(m.baseUrl)}</span>`) : ''}
           ${m.live ? row('Last fetched', esc(ago(m.lastFetched))) : ''}
           ${m.live ? row('Refresh cadence', `Live, cached ${m.cacheMinutes} min`) : ''}
-          ${m.live ? row('Customer names mapped', int(m.namesMapped)) : ''}
+          ${m.live && m.namesMapped ? row('Name overrides', int(m.namesMapped)) : ''}
           ${row('Sign-in', m.protection === 'cloudflare' ? 'Cloudflare Access (verified on every API request)' : m.protection === 'vercel' ? 'Vercel Authentication (team members only)' : 'None')}
         </dl>
         ${m.live ? '<p class="muted small">Data is read live from the Wallet API and cached briefly. Use <b>Refresh</b> (top bar) to pull the latest immediately.</p>'
@@ -446,7 +446,7 @@ function renderSettings() {
         <dl class="kv">
           ${row('Credit price', s.creditPrice != null ? usd(s.creditPrice) + ' per credit' : '—')}
           ${row('Conversion', s.conversionUsd != null ? `${usd(s.conversionUsd)} = ${int(s.conversionTokens)} credits` : '—')}
-          ${row('Markup', s.markupPercent != null ? s.markupPercent.toFixed(1) + '%' : '—')}
+          ${row('Markup', s.markupPercent != null ? s.markupPercent.toFixed(1) + '%' + (s.pricingSource === 'derived' ? ' <span class="muted">(derived)</span>' : '') : '—')}
           ${row('Credits per $1 API cost', s.tokensPerCostUsd != null ? int(s.tokensPerCostUsd) : '—')}
           ${s.minHoldAmount != null ? row('Min hold', usd(s.minHoldAmount)) : ''}
           ${s.defaultAutoRenewalFrequencyDays != null ? row('Default renewal', `every ${int(s.defaultAutoRenewalFrequencyDays)} days`) : ''}
@@ -478,10 +478,7 @@ function renderSettings() {
         </table></div>
       </section>
     </div>
-    ${m.live ? `<section class="section card">
-      <h2>Customer names</h2>
-      <p class="muted small">The Wallet API doesn't return customer names yet, so customers show as <span class="mono">Tenant xxxxxxxx</span>. Set <code>TENANT_NAMES</code> to a JSON map of tenant UUID → name (Vercel env var), or ask the Wallet team to add <span class="mono">name</span> to <span class="mono">GET /v1/Wallets</span>.</p>
-    </section>` : ''}`;
+    ''}`;
 }
 
 /* ---------- router ---------- */
