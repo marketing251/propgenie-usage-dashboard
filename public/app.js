@@ -5,7 +5,7 @@ const OTHER = '#6b7280';
 const DAY = 864e5;
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view');
-const state = { meta: null, range: { preset: '30' }, charts: [], log: null, metric: 'usd' };
+const state = { meta: null, range: { preset: '30' }, charts: [], log: null, metric: 'usd', hidden: {} };
 
 try { const saved = JSON.parse(localStorage.getItem('pgu.range')); if (saved?.preset) state.range = saved; } catch {}
 
@@ -94,7 +94,9 @@ $('#menu-btn').addEventListener('click', () => $('#sidebar').classList.toggle('o
 /* ---------- charts ---------- */
 const METRICS = { usd: ['Spend', (v) => usd(v)], credits: ['Credits', compact], transactions: ['Uses', int] };
 
-function dailyChart(canvas, legendEl, daily, metric) {
+// hidden: Set of legend keys switched off (shared with anything else filtered by this chart).
+// onChange(keyOf, hidden) fires after the chart draws and on every legend toggle.
+function dailyChart(canvas, legendEl, daily, metric, hidden, onChange) {
   const { from, to } = rangeDates();
   const first = daily.length ? daily[0].day : from;
   const start = state.range.preset === 'all' ? first : from;
@@ -111,11 +113,11 @@ function dailyChart(canvas, legendEl, daily, metric) {
     const data = new Array(days.length).fill(0);
     daily.forEach((d) => { if (keyOf(d.service) === k && idx[d.day] != null) data[idx[d.day]] += Math.abs(d[metric]); });
     const color = k === 'Other' ? OTHER : serviceColor(k);
-    return { label: k, data, backgroundColor: color, hoverBackgroundColor: color, borderColor: '#15151e',
+    return { label: k, data, hidden: hidden.has(k), backgroundColor: color, hoverBackgroundColor: color, borderColor: '#15151e',
       borderWidth: days.length > 60 ? 0 : { top: 2 }, borderSkipped: false, borderRadius: 3, maxBarThickness: 28 };
   });
   const fmt = METRICS[metric][1];
-  legendEl.innerHTML = keys.map((k) => `<button data-k="${esc(k)}">${swatch(k === 'Other' ? OTHER : serviceColor(k))}${esc(k)}</button>`).join('');
+  legendEl.innerHTML = keys.map((k) => `<button data-k="${esc(k)}" class="${hidden.has(k) ? 'off' : ''}">${swatch(k === 'Other' ? OTHER : serviceColor(k))}${esc(k)}</button>`).join('');
   const chart = new Chart(canvas, {
     type: 'bar',
     data: { labels: days, datasets },
@@ -150,8 +152,11 @@ function dailyChart(canvas, legendEl, daily, metric) {
     const i = keys.indexOf(b.dataset.k);
     chart.setDatasetVisibility(i, !chart.isDatasetVisible(i)); chart.update();
     b.classList.toggle('off', !chart.isDatasetVisible(i));
+    if (chart.isDatasetVisible(i)) hidden.delete(b.dataset.k); else hidden.add(b.dataset.k);
+    onChange?.(keyOf, hidden);
   };
   state.charts.push(chart);
+  onChange?.(keyOf, hidden);
 }
 
 function chartSection(title, id) {
@@ -165,12 +170,15 @@ function chartSection(title, id) {
       <div class="chart-wrap"><canvas id="${id}" aria-label="${title}" role="img"></canvas></div>
     </div></section>`;
 }
-function mountChart(id, daily) {
+function mountChart(id, daily, onChange) {
+  const hidden = (state.hidden[id] ||= new Set());
   const draw = () => {
-    state.charts.filter((c) => c.canvas.id === id).forEach((c) => c.destroy());
-    state.charts = state.charts.filter((c) => c.canvas.id !== id);
-    if (!daily.length) { $('#' + id).parentElement.innerHTML = '<div class="empty">No usage in this range.</div>'; return; }
-    dailyChart($('#' + id), $(`#${id}-legend`), daily, state.metric);
+    // Chart.js nulls .canvas on destroy, so split the list before destroying.
+    const mine = state.charts.filter((c) => c.canvas?.id === id);
+    state.charts = state.charts.filter((c) => !mine.includes(c));
+    mine.forEach((c) => c.destroy());
+    if (!daily.length) { $('#' + id).parentElement.innerHTML = '<div class="empty">No usage in this range.</div>'; onChange?.((s) => s, new Set()); return; }
+    dailyChart($('#' + id), $(`#${id}-legend`), daily, state.metric, hidden, onChange);
   };
   $(`[data-metric-seg="${id}"]`).onclick = (e) => {
     const b = e.target.closest('button'); if (!b) return;
@@ -263,12 +271,10 @@ async function renderOverview() {
     ${chartSection('Daily usage by service', 'ov-daily')}
     <div class="grid two-col section">
       <section>
-        <div class="section-head"><h2>Top customers</h2><span class="spacer"></span><a class="btn" href="#/clients">All customers →</a></div>
+        <div class="section-head"><h2>Top customers</h2><span class="hint" id="top-scope"></span><span class="spacer"></span><a class="btn" href="#/clients">All customers →</a></div>
         <div class="card table-wrap" style="padding:6px 6px 0"><table>
           <thead><tr><th>Customer</th><th class="num">Uses</th><th class="num">Credits</th><th class="num">Spend</th>${t.balance != null ? '<th class="num">Balance</th>' : ''}</tr></thead>
-          <tbody>${d.topClients.map((c) => `<tr class="clickable" data-href="#/clients/${encodeURIComponent(c.id)}"><td>${esc(c.name)}</td>
-            <td class="num">${int(c.transactions)}</td><td class="num">${compact(Math.abs(c.credits))}</td><td class="num">${usd(Math.abs(c.usd))}</td>
-            ${t.balance != null ? `<td class="num">${usd(c.balance)}</td>` : ''}</tr>`).join('') || '<tr><td colspan="5" class="muted">No usage</td></tr>'}</tbody>
+          <tbody id="top-rows"></tbody>
         </table></div>
       </section>
       <section>
@@ -276,7 +282,27 @@ async function renderOverview() {
         ${serviceTable(d.byService, t, false)}
       </section>
     </div>`;
-  mountChart('ov-daily', d.daily);
+  mountChart('ov-daily', d.daily, (keyOf, hidden) => drawTopCustomers(d.customerServices, keyOf, hidden, t.balance != null));
+}
+
+// Top customers for the services visible in the daily chart, ranked by the chart's current metric.
+function drawTopCustomers(rows, keyOf, hidden, showBalance) {
+  const metric = state.metric;
+  const byCustomer = new Map();
+  for (const r of rows) {
+    if (hidden.has(keyOf(r.service))) continue;
+    const c = byCustomer.get(r.id) || { id: r.id, name: r.name, balance: r.balance, usd: 0, credits: 0, transactions: 0 };
+    c.usd += Math.abs(r.usd); c.credits += Math.abs(r.credits); c.transactions += r.transactions;
+    byCustomer.set(r.id, c);
+  }
+  const top = [...byCustomer.values()].filter((c) => c[metric] > 0).sort((a, b) => b[metric] - a[metric] || b.usd - a.usd).slice(0, 10);
+  const shown = [...new Set(rows.map((r) => keyOf(r.service)))].filter((k) => !hidden.has(k));
+  const all = shown.length && !rows.some((r) => hidden.has(keyOf(r.service)));
+  $('#top-scope').textContent = `${all ? 'All services' : shown.length ? shown.join(' + ') : 'No services selected'} · by ${METRICS[metric][0].toLowerCase()}`;
+  $('#top-rows').innerHTML = top.map((c) => `<tr class="clickable" data-href="#/clients/${encodeURIComponent(c.id)}"><td>${esc(c.name)}</td>
+    <td class="num">${int(c.transactions)}</td><td class="num">${compact(c.credits)}</td><td class="num">${usd(c.usd)}</td>
+    ${showBalance ? `<td class="num">${usd(c.balance)}</td>` : ''}</tr>`).join('')
+    || `<tr><td colspan="5" class="muted">${shown.length ? 'No usage for this selection' : 'Select a service in the chart legend'}</td></tr>`;
 }
 
 async function renderClients(id) {
