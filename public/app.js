@@ -200,7 +200,7 @@ function usageTiles(t, p, extra = []) {
       + (t.otherDebits > 0.005 ? `<br><span class="sub">+ ${usd(t.otherDebits)} manual admin debits excluded</span>` : '') },
     { label: 'Credits Used', value: compact(t.credits), sub: delta(t.credits, p?.credits) || `<span class="sub">${int(t.credits)} credits</span>` },
     { label: state.meta.live ? 'Est. API Cost' : 'API Cost', value: usd(t.apiCost),
-      sub: state.meta.live ? `<span class="sub">spend × (1 − ${markup ?? '?'}% markup)</span>` : delta(t.apiCost, p?.apiCost) },
+      sub: state.meta.live ? `<span class="sub">spend × (1 − ${markup != null ? +markup.toFixed(2) : '?'}% markup)</span>` : delta(t.apiCost, p?.apiCost) },
     { label: 'Uses', value: int(t.transactions), sub: delta(t.transactions, p?.transactions) || '<span class="sub">tool transactions</span>' },
     ...extra,
   ]);
@@ -322,7 +322,7 @@ async function renderClients(id) {
   </div>`;
   const drawList = () => {
     const needle = $('#client-search').value.trim().toLowerCase();
-    $('#client-items').innerHTML = clients.filter((c) => !needle || c.name.toLowerCase().includes(needle) || c.id.toLowerCase().includes(needle))
+    $('#client-items').innerHTML = clients.filter((c) => !needle || c.name.toLowerCase().includes(needle) || (c.shortcut || '').toLowerCase().includes(needle) || c.id.toLowerCase().includes(needle))
       .map((c) => `<a class="client-item ${c.id === id ? 'active' : ''}" href="#/clients/${encodeURIComponent(c.id)}">
         <span class="name">${esc(c.name)}</span><span class="amt">${usd(Math.abs(c.usd))}</span></a>`).join('') || '<div class="empty" style="padding:20px">No match</div>';
   };
@@ -335,7 +335,7 @@ async function renderClients(id) {
   const services = d.byService.map((r) => r.service);
   $('#client-detail').innerHTML = `
     <div class="detail-head">
-      <h2>${esc(c.name)}</h2>${c.plan ? `<span class="pill ${esc(c.plan)}">${esc(c.plan)}</span>` : ''}
+      <h2>${esc(c.name)}</h2>${c.shortcut && c.shortcut !== c.name ? `<span class="pill">${esc(c.shortcut)}</span>` : ''}${c.plan ? `<span class="pill ${esc(c.plan)}">${esc(c.plan)}</span>` : ''}
       <span class="muted mono" style="font-size:12px">${esc(c.id)}</span><span style="flex:1"></span>
       <span class="muted" style="font-size:13px">Customer since ${fmtDate(c.createdAt)}</span>
     </div>
@@ -461,6 +461,7 @@ function renderSettings() {
           ${m.live ? row('Endpoint', `<span class="mono">${esc(m.baseUrl)}</span>`) : ''}
           ${m.live ? row('Last fetched', esc(ago(m.lastFetched))) : ''}
           ${m.live ? row('Refresh cadence', `Live, cached ${m.cacheMinutes} min`) : ''}
+          ${m.live ? row('Client names loaded', m.clientNames ? int(m.clientNames) + ' shortcuts' : 'None — showing shortcuts') : ''}
           ${m.live && m.namesMapped ? row('Name overrides', int(m.namesMapped)) : ''}
           ${row('Sign-in', m.protection === 'cloudflare' ? 'Cloudflare Access (verified on every API request)' : m.protection === 'vercel' ? 'Vercel Authentication (team members only)' : 'None')}
         </dl>

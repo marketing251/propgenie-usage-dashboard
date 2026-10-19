@@ -1,6 +1,6 @@
 # PropGenie Usage Dashboard
 
-Every PropAccount customer's PropGenie usage: credits, USD spend, uses per service/tool, wallet balances, purchases and the full usage ledger — read live from the **FPFX Wallet API** (`wallet.fpfxtech.io`). Customer names come from `tenantName` on `/v1/Wallets` and `/wallet` (`TENANT_NAMES` can override).
+Every PropAccount customer's PropGenie usage: credits, USD spend, uses per service/tool, wallet balances, purchases and the full usage ledger — read live from the **FPFX Wallet API** (`wallet.fpfxtech.io`). The Wallet `tenantName` is the firm shortcut (e.g. `MENT`); it is shown as the client name via `CLIENT_NAMES` (shortcut → name JSON, from the client sheet) or the git-ignored `config/client-names.local.json`. The client list is confidential and never committed. `TENANT_NAMES` (uuid → name) overrides both.
 
 ```bash
 npm start       # http://localhost:5890 (reads .env.local)
